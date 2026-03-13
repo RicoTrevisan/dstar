@@ -33,23 +33,33 @@ defmodule Dstar.ActionsTest do
     end
   end
 
+  @csrf_opts "{headers: {'x-csrf-token': $_csrfToken}}"
+
   describe "event/2 with module" do
-    test "generates a post action with encoded module" do
+    test "generates a post action with encoded module and CSRF header" do
       result = Actions.event(MyApp.CounterView, "increment")
       encoded = Actions.encode_module(MyApp.CounterView)
-      assert result == "@post('/ds/#{encoded}/increment')"
+      assert result == "@post('/ds/#{encoded}/increment', #{@csrf_opts})"
+    end
+  end
+
+  describe "event/3 with prefix" do
+    test "generates a post action with prefix and CSRF header" do
+      result = Actions.event(MyApp.CounterView, "increment", prefix: "/ws")
+      encoded = Actions.encode_module(MyApp.CounterView)
+      assert result == "@post('/ws/ds/#{encoded}/increment', #{@csrf_opts})"
     end
   end
 
   describe "event/1 dynamic" do
-    test "generates a post action with dynamic module signal" do
+    test "generates a post action with dynamic module signal and CSRF header" do
       result = Actions.event("increment")
-      assert result == "@post('/ds/' + $_dstar_module + '/increment')"
+      assert result == "@post('/ds/' + $_dstar_module + '/increment', #{@csrf_opts})"
     end
 
-    test "generates with custom module signal" do
+    test "generates with custom module signal and CSRF header" do
       result = Actions.event("save", module: "my_module")
-      assert result == "@post('/ds/my_module/save')"
+      assert result == "@post('/ds/my_module/save', #{@csrf_opts})"
     end
   end
 end

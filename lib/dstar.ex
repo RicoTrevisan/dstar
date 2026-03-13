@@ -29,11 +29,11 @@ defmodule Dstar do
   Starts an SSE connection on the given Plug conn.
 
   Sets content type to `text/event-stream`, disables caching,
-  and initiates a chunked response. Returns a `%Dstar.SSE{}` struct.
+  and initiates a chunked response. Returns the conn.
 
   ## Example
 
-      sse = Dstar.start(conn)
+      conn = Dstar.start(conn)
 
   """
   defdelegate start(conn), to: Dstar.SSE
@@ -56,11 +56,11 @@ defmodule Dstar do
 
   ## Example
 
-      sse |> Dstar.patch_signals(%{count: 42})
+      conn |> Dstar.patch_signals(%{count: 42})
 
   """
-  def patch_signals(sse, signals, opts \\ []) do
-    Dstar.Signals.patch(sse, signals, opts)
+  def patch_signals(conn, signals, opts \\ []) do
+    Dstar.Signals.patch(conn, signals, opts)
   end
 
   @doc """
@@ -70,21 +70,21 @@ defmodule Dstar do
 
   ## Example
 
-      sse |> Dstar.patch_elements("<span id=\\"count\\">42</span>", selector: "#count")
+      conn |> Dstar.patch_elements("<span id=\\"count\\">42</span>", selector: "#count")
 
   """
-  defdelegate patch_elements(sse, html, opts), to: Dstar.Elements, as: :patch
+  defdelegate patch_elements(conn, html, opts), to: Dstar.Elements, as: :patch
 
   @doc """
   Removes DOM elements on the client via SSE.
 
   ## Example
 
-      sse |> Dstar.remove_elements("#old-item")
+      conn |> Dstar.remove_elements("#old-item")
 
   """
-  def remove_elements(sse, selector, opts \\ []) do
-    Dstar.Elements.remove(sse, selector, opts)
+  def remove_elements(conn, selector, opts \\ []) do
+    Dstar.Elements.remove(conn, selector, opts)
   end
 
   @doc """
@@ -93,11 +93,48 @@ defmodule Dstar do
   ## Examples
 
       Dstar.event(MyAppWeb.CounterHandler, "increment")
-      # => "@post('/ds/my_app_web-counter_handler/increment')"
+      # => "@post('/ds/' + $_dstar_module + '/increment')"
 
       Dstar.event("increment")
       # => "@post('/ds/' + $_dstar_module + '/increment')"
 
   """
   defdelegate event(module_or_name, name_or_opts), to: Dstar.Actions
+  defdelegate event(module, event_name, opts), to: Dstar.Actions
+
+  @doc """
+  Executes JavaScript on the client by appending a script tag via SSE.
+
+  ## Example
+
+      conn |> Dstar.execute_script("alert('Hello!')")
+
+  """
+  def execute_script(conn, script, opts \\ []) do
+    Dstar.Scripts.execute(conn, script, opts)
+  end
+
+  @doc """
+  Redirects the client to the given URL via JavaScript.
+
+  ## Example
+
+      conn |> Dstar.redirect("/workspaces")
+
+  """
+  def redirect(conn, url, opts \\ []) do
+    Dstar.Scripts.redirect(conn, url, opts)
+  end
+
+  @doc """
+  Logs a message to the browser console via SSE.
+
+  ## Example
+
+      conn |> Dstar.console_log("Debug info")
+
+  """
+  def console_log(conn, message, opts \\ []) do
+    Dstar.Scripts.console_log(conn, message, opts)
+  end
 end

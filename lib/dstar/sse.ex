@@ -1,9 +1,9 @@
 defmodule Dstar.SSE do
   @moduledoc """
-  Server-Sent Event (SSE) connection and event formatting.
+  Server-Sent Event (SSE) connection helpers.
 
-  This is the core of the library. It wraps a `Plug.Conn` in an `%SSE{}`
-  struct and provides functions to send SSE events over it.
+  Sets up a Plug conn for chunked SSE streaming and provides
+  functions to send events over it.
 
   ## Example
 
@@ -13,55 +13,29 @@ defmodule Dstar.SSE do
 
   """
 
-  @type t :: %__MODULE__{
-          conn: Plug.Conn.t(),
-          closed: boolean()
-        }
-
-  defstruct [:conn, closed: false]
-
   @doc """
   Starts an SSE connection from a Plug conn.
 
   Sets the content type to `text/event-stream`, disables caching,
-  sends a chunked 200 response, and returns an `%SSE{}` struct.
+  and sends a chunked 200 response.
 
   ## Example
 
-      sse = Dstar.SSE.start(conn)
+      conn = Dstar.SSE.start(conn)
 
   """
-  @spec start(Plug.Conn.t()) :: t()
+  @spec start(Plug.Conn.t()) :: Plug.Conn.t()
   def start(conn) do
     conn
     |> Plug.Conn.put_resp_content_type("text/event-stream")
     |> Plug.Conn.put_resp_header("cache-control", "no-cache")
     |> Plug.Conn.send_chunked(200)
-    |> new()
-  end
-
-  @doc """
-  Creates an SSE struct from a conn that's already been set up for chunked streaming.
-
-  Use `start/1` instead unless you need custom response headers.
-
-  ## Example
-
-      conn
-      |> put_resp_content_type("text/event-stream")
-      |> send_chunked(200)
-      |> Dstar.SSE.new()
-
-  """
-  @spec new(Plug.Conn.t()) :: t()
-  def new(conn) do
-    %__MODULE__{conn: conn}
   end
 
   @doc """
   Sends an SSE event to the client.
 
-  Returns `{:ok, sse}` on success, `{:error, reason}` on failure.
+  Returns `{:ok, conn}` on success, `{:error, reason}` on failure.
 
   ## Options
 
@@ -70,18 +44,12 @@ defmodule Dstar.SSE do
 
   ## Example
 
-      {:ok, sse} = Dstar.SSE.send_event(sse, "my-event", ["line1", "line2"])
+      {:ok, conn} = Dstar.SSE.send_event(conn, "my-event", ["line1", "line2"])
 
   """
-  @spec send_event(t(), String.t(), list(String.t()) | String.t(), keyword()) ::
-          {:ok, t()} | {:error, term()}
-  def send_event(sse, event_type, data_lines, opts \\ [])
-
-  def send_event(%__MODULE__{closed: true} = sse, _event_type, _data_lines, _opts) do
-    {:error, {:closed, sse}}
-  end
-
-  def send_event(%__MODULE__{conn: conn} = sse, event_type, data_lines, opts) do
+  @spec send_event(Plug.Conn.t(), String.t(), list(String.t()) | String.t(), keyword()) ::
+          {:ok, Plug.Conn.t()} | {:error, term()}
+  def send_event(conn, event_type, data_lines, opts \\ []) do
     data_lines = if is_binary(data_lines), do: [data_lines], else: data_lines
 
     event_content =
@@ -95,7 +63,7 @@ defmodule Dstar.SSE do
 
     case Plug.Conn.chunk(conn, event_content) do
       {:ok, conn} ->
-        {:ok, %{sse | conn: conn}}
+        {:ok, conn}
 
       {:error, reason} ->
         {:error, reason}
@@ -103,19 +71,20 @@ defmodule Dstar.SSE do
   end
 
   @doc """
-  Sends an SSE event, raising on error. Returns the updated `%SSE{}`.
+  Sends an SSE event, raising on error. Returns the updated conn.
 
   Useful for pipelines:
 
-      sse
+      conn
       |> send_event!("event-a", "data a")
       |> send_event!("event-b", "data b")
 
   """
-  @spec send_event!(t(), String.t(), list(String.t()) | String.t(), keyword()) :: t()
-  def send_event!(sse, event_type, data_lines, opts \\ []) do
-    case send_event(sse, event_type, data_lines, opts) do
-      {:ok, sse} -> sse
+  @spec send_event!(Plug.Conn.t(), String.t(), list(String.t()) | String.t(), keyword()) ::
+          Plug.Conn.t()
+  def send_event!(conn, event_type, data_lines, opts \\ []) do
+    case send_event(conn, event_type, data_lines, opts) do
+      {:ok, conn} -> conn
       {:error, reason} -> raise "Failed to send SSE event: #{inspect(reason)}"
     end
   end
@@ -136,16 +105,6 @@ defmodule Dstar.SSE do
     event_line = "event: #{event_type}\n"
     data_content = Enum.map_join(data_lines, "\n", &"data: #{&1}")
     "#{event_line}#{data_content}\n\n"
-  end
-
-  @doc "Returns true if the SSE connection has been marked closed."
-  @spec closed?(t()) :: boolean()
-  def closed?(%__MODULE__{closed: closed}), do: closed
-
-  @doc "Marks the SSE connection as closed."
-  @spec close(t()) :: t()
-  def close(%__MODULE__{} = sse) do
-    %{sse | closed: true}
   end
 
   # Private helpers

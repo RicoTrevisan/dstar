@@ -3,8 +3,8 @@ defmodule Dstar.Signals do
   Functions for reading and patching Datastar signals via SSE.
 
       signals = Dstar.Signals.read(conn)
-      sse |> patch(%{count: 42, message: "Hello"})
-      sse |> patch(%{count: 42}, only_if_missing: true)
+      conn |> patch(%{count: 42, message: "Hello"})
+      conn |> patch(%{count: 42}, only_if_missing: true)
   """
 
   alias Dstar.SSE
@@ -60,15 +60,15 @@ defmodule Dstar.Signals do
 
   ## Example
 
-      sse
+      conn
       |> Dstar.Signals.patch(%{count: 42})
       |> Dstar.Signals.patch(%{message: "Hello"}, only_if_missing: true)
 
   """
-  @spec patch(SSE.t(), map(), keyword()) :: SSE.t()
-  def patch(sse, signals, opts \\ []) when is_map(signals) do
+  @spec patch(Plug.Conn.t(), map(), keyword()) :: Plug.Conn.t()
+  def patch(conn, signals, opts \\ []) when is_map(signals) do
     json = Jason.encode!(signals)
-    patch_raw(sse, json, opts)
+    patch_raw(conn, json, opts)
   end
 
   @doc """
@@ -76,12 +76,12 @@ defmodule Dstar.Signals do
 
   ## Example
 
-      sse
+      conn
       |> Dstar.Signals.patch_raw(~s({"count": 42}))
 
   """
-  @spec patch_raw(SSE.t(), String.t(), keyword()) :: SSE.t()
-  def patch_raw(sse, json, opts \\ []) when is_binary(json) do
+  @spec patch_raw(Plug.Conn.t(), String.t(), keyword()) :: Plug.Conn.t()
+  def patch_raw(conn, json, opts \\ []) when is_binary(json) do
     only_if_missing = Keyword.get(opts, :only_if_missing, @default_only_if_missing)
 
     data_lines =
@@ -96,7 +96,7 @@ defmodule Dstar.Signals do
       ]
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
-    SSE.send_event!(sse, @event_type, data_lines, event_opts)
+    SSE.send_event!(conn, @event_type, data_lines, event_opts)
   end
 
   @doc """

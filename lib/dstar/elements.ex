@@ -2,9 +2,9 @@ defmodule Dstar.Elements do
   @moduledoc """
   Functions for patching and removing DOM elements via SSE.
 
-      sse |> patch("<div>New content</div>", selector: "#target")
-      sse |> patch("<p>Inner</p>", selector: "#target", mode: :inner)
-      sse |> remove("#target")
+      conn |> patch("<div>New content</div>", selector: "#target")
+      conn |> patch("<p>Inner</p>", selector: "#target", mode: :inner)
+      conn |> remove("#target")
   """
 
   alias Dstar.SSE
@@ -33,20 +33,20 @@ defmodule Dstar.Elements do
   ## Examples
 
       # Replace entire element
-      sse |> patch("<div>Content</div>", selector: "#target")
+      conn |> patch("<div>Content</div>", selector: "#target")
 
       # Update inner HTML only
-      sse |> patch("<p>New text</p>", selector: ".content", mode: :inner)
+      conn |> patch("<p>New text</p>", selector: ".content", mode: :inner)
 
       # Append to element
-      sse |> patch("<li>Item</li>", selector: "ul", mode: :append)
+      conn |> patch("<li>Item</li>", selector: "ul", mode: :append)
 
       # With view transitions
-      sse |> patch("<div>Smooth</div>", selector: "#box", use_view_transitions: true)
+      conn |> patch("<div>Smooth</div>", selector: "#box", use_view_transitions: true)
 
   """
-  @spec patch(SSE.t(), String.t(), keyword()) :: SSE.t()
-  def patch(sse, html, opts \\ []) when is_binary(html) do
+  @spec patch(Plug.Conn.t(), String.t(), keyword()) :: Plug.Conn.t()
+  def patch(conn, html, opts \\ []) when is_binary(html) do
     selector = Keyword.fetch!(opts, :selector)
     mode = Keyword.get(opts, :mode, @default_patch_mode)
     use_view_transitions = Keyword.get(opts, :use_view_transitions, @default_use_view_transitions)
@@ -69,7 +69,7 @@ defmodule Dstar.Elements do
       ]
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
-    SSE.send_event!(sse, @event_type, data_lines, event_opts)
+    SSE.send_event!(conn, @event_type, data_lines, event_opts)
   end
 
   @doc """
@@ -82,13 +82,13 @@ defmodule Dstar.Elements do
 
   ## Example
 
-      sse
+      conn
       |> Dstar.Elements.remove(".temporary")
       |> Dstar.Elements.remove("#old-content")
 
   """
-  @spec remove(SSE.t(), String.t(), keyword()) :: SSE.t()
-  def remove(sse, selector, opts \\ []) when is_binary(selector) do
+  @spec remove(Plug.Conn.t(), String.t(), keyword()) :: Plug.Conn.t()
+  def remove(conn, selector, opts \\ []) when is_binary(selector) do
     data_lines = ["selector " <> selector]
 
     event_opts =
@@ -98,7 +98,7 @@ defmodule Dstar.Elements do
       ]
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
-    SSE.send_event!(sse, @event_type, data_lines, event_opts)
+    SSE.send_event!(conn, @event_type, data_lines, event_opts)
   end
 
   @doc """
