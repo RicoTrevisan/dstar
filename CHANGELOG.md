@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.2 — 2026-03-15
+
+### Added
+
+- Migration guide from PhoenixDatastar to Dstar (`docs/migrating-from-phoenix-datastar.md`)
+
 ## 0.0.1 — 2025-03-12
 
 Initial release after the grug-brain simplification. The library was gutted from
