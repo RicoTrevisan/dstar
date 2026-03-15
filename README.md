@@ -7,7 +7,7 @@
 
 ## Why Dstar?
 
-Dstar is for people who want [Datastar's](https://data-star.dev/) reactive UI capabilities without a framework on top.
+Phoenix LiveView without the websocket hiccups. It brings [Datastar's](https://data-star.dev/) reactive UI capabilities on top of a simple Phoenix DeadView app.
 
 No processes. No supervision trees. No GenServers. No behaviours. No macros. Just **~700 lines of pure functions** that format and send Server-Sent Events over a Plug connection. You keep your controllers, templates, and routes exactly as they are. Dstar just adds SSE helpers.
 
