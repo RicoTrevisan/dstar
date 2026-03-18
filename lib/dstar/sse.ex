@@ -16,8 +16,9 @@ defmodule Dstar.SSE do
   @doc """
   Starts an SSE connection from a Plug conn.
 
-  Sets the content type to `text/event-stream`, disables caching,
-  and sends a chunked 200 response.
+  Sets the required SSE response headers (`Content-Type: text/event-stream`,
+  `Cache-Control: no-cache`, `Connection: keep-alive`) and sends a chunked
+  200 response.
 
   ## Example
 
@@ -29,6 +30,7 @@ defmodule Dstar.SSE do
     conn
     |> Plug.Conn.put_resp_content_type("text/event-stream")
     |> Plug.Conn.put_resp_header("cache-control", "no-cache")
+    |> Plug.Conn.put_resp_header("connection", "keep-alive")
     |> Plug.Conn.send_chunked(200)
   end
 
@@ -151,6 +153,7 @@ defmodule Dstar.SSE do
   defp maybe_add_id(lines, id), do: lines ++ ["id: #{id}\n"]
 
   defp maybe_add_retry(lines, nil), do: lines
+  defp maybe_add_retry(lines, 1000), do: lines
   defp maybe_add_retry(lines, retry), do: lines ++ ["retry: #{retry}\n"]
 
   defp add_data_lines(lines, data_lines) do

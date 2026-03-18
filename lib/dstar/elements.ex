@@ -23,10 +23,16 @@ defmodule Dstar.Elements do
   @doc """
   Patches DOM elements with new HTML content.
 
+  When no `:selector` is provided, each top-level element in the HTML
+  must have an `id` attribute so Datastar can target it by ID.
+
+  The `html` argument may be `nil` when using `mode: :remove` (elements
+  are not needed for removal).
+
   ## Options
 
-  - `:selector` - CSS selector for target elements (required)
-  - `:mode` - Patch mode (default: :outer)
+  - `:selector` - CSS selector for target elements (optional — defaults to element ID)
+  - `:mode` - Patch mode (default: :outer). Only non-default values are sent.
   - `:namespace` - Element namespace: `:html`, `:svg`, `:mathml` (default: :html)
   - `:use_view_transitions` - Enable View Transitions API (default: false)
   - `:event_id` - Event ID for client tracking
@@ -34,7 +40,10 @@ defmodule Dstar.Elements do
 
   ## Examples
 
-      # Replace entire element
+      # Patch by element ID (no selector needed)
+      conn |> patch("<div id=\\"feed\\">New content</div>")
+
+      # Patch with explicit selector
       conn |> patch("<div>Content</div>", selector: "#target")
 
       # Update inner HTML only
@@ -43,6 +52,9 @@ defmodule Dstar.Elements do
       # Append to element
       conn |> patch("<li>Item</li>", selector: "ul", mode: :append)
 
+      # Remove by selector (no HTML needed)
+      conn |> patch(nil, selector: "#old", mode: :remove)
+
       # SVG namespace
       conn |> patch("<circle cx='50' cy='50' r='40'/>", selector: "#svg", namespace: :svg)
 
@@ -50,10 +62,10 @@ defmodule Dstar.Elements do
       conn |> patch("<div>Smooth</div>", selector: "#box", use_view_transitions: true)
 
   """
-  @spec patch(Plug.Conn.t(), String.t() | Phoenix.HTML.safe(), keyword()) :: Plug.Conn.t()
+  @spec patch(Plug.Conn.t(), String.t() | Phoenix.HTML.safe() | nil, keyword()) :: Plug.Conn.t()
   def patch(conn, html, opts \\ []) do
-    html = to_html_string(html)
-    selector = Keyword.fetch!(opts, :selector)
+    html = if is_nil(html), do: nil, else: to_html_string(html)
+    selector = Keyword.get(opts, :selector)
     mode = Keyword.get(opts, :mode, @default_patch_mode)
     namespace = Keyword.get(opts, :namespace, :html)
     use_view_transitions = Keyword.get(opts, :use_view_transitions, @default_use_view_transitions)
@@ -67,13 +79,17 @@ defmodule Dstar.Elements do
             "Invalid namespace: #{inspect(namespace)}. Must be one of #{inspect(@valid_namespaces)}"
     end
 
+    if is_nil(html) and mode != :remove do
+      raise ArgumentError, "elements content is required unless mode is :remove"
+    end
+
     data_lines =
       []
-      |> add_selector(selector)
-      |> add_mode(mode)
+      |> maybe_add_selector(selector)
+      |> maybe_add_mode(mode)
       |> maybe_add_namespace(namespace)
       |> maybe_add_view_transitions(use_view_transitions)
-      |> add_elements(html)
+      |> maybe_add_elements(html)
 
     event_opts =
       [
@@ -87,6 +103,8 @@ defmodule Dstar.Elements do
 
   @doc """
   Removes elements from the DOM by selector.
+
+  Sends a `datastar-patch-elements` event with `mode remove`.
 
   ## Options
 
@@ -102,16 +120,7 @@ defmodule Dstar.Elements do
   """
   @spec remove(Plug.Conn.t(), String.t(), keyword()) :: Plug.Conn.t()
   def remove(conn, selector, opts \\ []) when is_binary(selector) do
-    data_lines = ["selector " <> selector]
-
-    event_opts =
-      [
-        event_id: opts[:event_id],
-        retry: opts[:retry]
-      ]
-      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-
-    SSE.send_event!(conn, @event_type, data_lines, event_opts)
+    patch(conn, nil, Keyword.merge([selector: selector, mode: :remove], opts))
   end
 
   @doc """
@@ -119,14 +128,15 @@ defmodule Dstar.Elements do
 
   ## Example
 
-      format_patch("<div>content</div>", selector: "#target", mode: :outer)
+      format_patch("<div id=\\"feed\\">content</div>")
+      format_patch("<div>content</div>", selector: "#target")
       format_patch("<circle r='10'/>", selector: "#svg", namespace: :svg)
 
   """
-  @spec format_patch(String.t() | Phoenix.HTML.safe(), keyword()) :: String.t()
+  @spec format_patch(String.t() | Phoenix.HTML.safe() | nil, keyword()) :: String.t()
   def format_patch(html, opts \\ []) do
-    html = to_html_string(html)
-    selector = Keyword.fetch!(opts, :selector)
+    html = if is_nil(html), do: nil, else: to_html_string(html)
+    selector = Keyword.get(opts, :selector)
     mode = Keyword.get(opts, :mode, @default_patch_mode)
     namespace = Keyword.get(opts, :namespace, :html)
     use_view_transitions = Keyword.get(opts, :use_view_transitions, @default_use_view_transitions)
@@ -136,24 +146,46 @@ defmodule Dstar.Elements do
             "Invalid namespace: #{inspect(namespace)}. Must be one of #{inspect(@valid_namespaces)}"
     end
 
+    if is_nil(html) and mode != :remove do
+      raise ArgumentError, "elements content is required unless mode is :remove"
+    end
+
     data_lines =
       []
-      |> add_selector(selector)
-      |> add_mode(mode)
+      |> maybe_add_selector(selector)
+      |> maybe_add_mode(mode)
       |> maybe_add_namespace(namespace)
       |> maybe_add_view_transitions(use_view_transitions)
-      |> add_elements(html)
+      |> maybe_add_elements(html)
 
     SSE.format_event(@event_type, data_lines)
   end
 
+  @doc """
+  Formats an element removal as an SSE event string (for stateless responses).
+
+  ## Example
+
+      format_remove("#target")
+      # => "event: datastar-patch-elements\\ndata: mode remove\\ndata: selector #target\\n\\n"
+
+  """
+  @spec format_remove(String.t(), keyword()) :: String.t()
+  def format_remove(selector, opts \\ []) when is_binary(selector) do
+    format_patch(nil, Keyword.merge([selector: selector, mode: :remove], opts))
+  end
+
   # Private helpers
 
-  defp add_selector(lines, selector) do
+  defp maybe_add_selector(lines, nil), do: lines
+
+  defp maybe_add_selector(lines, selector) do
     lines ++ ["selector " <> selector]
   end
 
-  defp add_mode(lines, mode) do
+  defp maybe_add_mode(lines, :outer), do: lines
+
+  defp maybe_add_mode(lines, mode) do
     lines ++ ["mode " <> to_string(mode)]
   end
 
@@ -184,7 +216,9 @@ defmodule Dstar.Elements do
     end
   end
 
-  defp add_elements(lines, html) do
+  defp maybe_add_elements(lines, nil), do: lines
+
+  defp maybe_add_elements(lines, html) do
     html_lines =
       html
       |> String.split("\n")

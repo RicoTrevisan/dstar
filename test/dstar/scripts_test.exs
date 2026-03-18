@@ -10,6 +10,12 @@ defmodule Dstar.ScriptsTest do
     |> SSE.start()
   end
 
+  # Extract the raw chunks sent over the SSE connection
+  defp chunks(conn) do
+    {_adapter, state} = conn.adapter
+    state.chunks
+  end
+
   describe "execute/3" do
     test "executes a basic script with auto_remove" do
       conn = chunked_conn()
@@ -20,16 +26,14 @@ defmodule Dstar.ScriptsTest do
       assert result.state == :chunked
     end
 
-    test "wraps script with IIFE and removes when auto_remove is true" do
-      # We can't easily inspect the chunk content, but we can verify it executes
-      # without error and returns proper conn state
+    test "adds data-effect when auto_remove is true" do
       conn = chunked_conn()
       result = Scripts.execute(conn, "console.log('test')", auto_remove: true)
 
       assert result.state == :chunked
     end
 
-    test "does not wrap script when auto_remove is false" do
+    test "does not add data-effect when auto_remove is false" do
       conn = chunked_conn()
       result = Scripts.execute(conn, "window.myVar = 42", auto_remove: false)
 
@@ -84,6 +88,62 @@ defmodule Dstar.ScriptsTest do
         Scripts.execute(conn, "var html = '<script>alert(1)</script>'")
 
       assert result.state == :chunked
+    end
+
+    test "auto_remove uses data-effect attribute per ADR spec" do
+      conn = chunked_conn()
+      result = Scripts.execute(conn, "console.log('test')", auto_remove: true)
+      output = chunks(result)
+
+      assert output =~ ~s[data-effect="el.remove()"]
+      refute output =~ "document.currentScript.remove()"
+      refute output =~ "(function(){"
+    end
+
+    test "auto_remove false does not add data-effect" do
+      conn = chunked_conn()
+      result = Scripts.execute(conn, "window.x = 1", auto_remove: false)
+      output = chunks(result)
+
+      refute output =~ "data-effect"
+      assert output =~ "window.x = 1"
+    end
+
+    test "script content is sent as-is without IIFE wrapping" do
+      conn = chunked_conn()
+      result = Scripts.execute(conn, "alert('hi')")
+      output = chunks(result)
+
+      assert output =~ ">alert('hi')</script>"
+      refute output =~ "(function(){"
+    end
+
+    test "user-provided attributes merge with auto_remove data-effect" do
+      conn = chunked_conn()
+
+      result =
+        Scripts.execute(conn, "test()",
+          auto_remove: true,
+          attributes: %{"type" => "module"}
+        )
+
+      output = chunks(result)
+      assert output =~ ~s[data-effect="el.remove()"]
+      assert output =~ ~s[type="module"]
+    end
+
+    test "user can override data-effect via attributes" do
+      conn = chunked_conn()
+
+      result =
+        Scripts.execute(conn, "test()",
+          auto_remove: true,
+          attributes: %{"data-effect" => "custom()"}
+        )
+
+      output = chunks(result)
+      assert output =~ ~s[data-effect="custom()"]
+      refute output =~ ~s[data-effect="el.remove()"]
     end
   end
 

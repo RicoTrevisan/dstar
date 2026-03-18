@@ -37,21 +37,21 @@ defmodule Dstar.Scripts do
     auto_remove = Keyword.get(opts, :auto_remove, true)
     attributes = Keyword.get(opts, :attributes, %{})
 
+    all_attributes =
+      if auto_remove do
+        Map.put_new(attributes, "data-effect", "el.remove()")
+      else
+        attributes
+      end
+
     attr_list =
-      attributes
+      all_attributes
       |> Map.to_list()
       |> Enum.map(fn {k, v} -> ~s(#{k}="#{escape_html_attr(v)}") end)
 
     attrs_str = if attr_list == [], do: "", else: " " <> Enum.join(attr_list, " ")
 
-    final_script =
-      if auto_remove do
-        "(function(){#{script}})();document.currentScript.remove();"
-      else
-        script
-      end
-
-    script_html = "<script#{attrs_str}>#{escape_script_content(final_script)}</script>"
+    script_html = "<script#{attrs_str}>#{escape_script_content(script)}</script>"
 
     element_opts =
       [
