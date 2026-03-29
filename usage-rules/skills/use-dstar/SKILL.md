@@ -178,14 +178,14 @@ data-signals:items="[]"          <%!-- Array --%>
 
 ### Header-based (Recommended)
 
-**Layout:**
+**Layout `<head>`:**
 ```heex
-<body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
-  <%= @inner_content %>
-</body>
+<meta name="csrf-token" content={get_csrf_token()} />
 ```
 
-Client-only signal (prefix `_`) sent as `x-csrf-token` header. Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`) include it automatically.
+Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`) read that tag directly and send it as an `x-csrf-token` header.
+
+They do **not** read CSRF from Datastar signals, so normal signal round-trips do not rewrite the helper's CSRF header.
 
 ### Form-compatible (mixed SSE + regular form routes)
 
@@ -201,6 +201,8 @@ end
 ```heex
 <body data-signals:csrf={"'#{get_csrf_token()}'"}>
 ```
+
+Because `csrf` is not `_`-prefixed, Datastar will include it in each request body. `Dstar.Plugs.RenameCsrfParam` copies that value into `_csrf_token` for `Plug.CSRFProtection`.
 
 ## Dynamic Dispatch
 
@@ -296,15 +298,6 @@ conn
 |> Dstar.start()
 |> Dstar.patch_signals(%{loading: false})
 |> Dstar.patch_elements("<p>Done!</p>", selector: "#status")
-|> Dstar.console_log("Operation complete")
-```
-
-All patches sent in one SSE stream.
-g("Operation complete")
-```
-
-All patches sent in one SSE stream.
-or: "#status")
 |> Dstar.console_log("Operation complete")
 ```
 

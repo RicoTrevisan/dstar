@@ -164,9 +164,3 @@ data-signals:errors="{}"         <%!-- Object --%>
 ## Dependencies
 
 Only two: `{:plug, "~> 1.14"}` and `{:jason, "~> 1.4"}`
-dencies
-
-Only two: `{:plug, "~> 1.14"}` and `{:jason, "~> 1.4"}`
-"~> 1.14"}` and `{:jason, "~> 1.4"}`
-y two: `{:plug, "~> 1.14"}` and `{:jason, "~> 1.4"}`
-"~> 1.14"}` and `{:jason, "~> 1.4"}`

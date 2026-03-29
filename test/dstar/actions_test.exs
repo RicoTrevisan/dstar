@@ -33,40 +33,38 @@ defmodule Dstar.ActionsTest do
     end
   end
 
-  @csrf_opts "{headers: {'x-csrf-token': $_csrfToken}}"
-
   # ── Verb helpers ──────────────────────────────────────────────────────
 
   for verb <- ~w(post get put patch delete)a do
     verb_str = Atom.to_string(verb)
 
     describe "#{verb}/2 with module" do
-      test "generates a #{verb_str} action with encoded module and CSRF header" do
+      test "generates a #{verb_str} action with encoded module" do
         result = apply(Actions, unquote(verb), [MyApp.CounterView, "increment"])
         encoded = Actions.encode_module(MyApp.CounterView)
-        assert result == "@#{unquote(verb_str)}('/ds/#{encoded}/increment', #{@csrf_opts})"
+        assert result == "@#{unquote(verb_str)}('/ds/#{encoded}/increment')"
       end
     end
 
     describe "#{verb}/3 with prefix" do
-      test "generates a #{verb_str} action with prefix and CSRF header" do
+      test "generates a #{verb_str} action with prefix" do
         result = apply(Actions, unquote(verb), [MyApp.CounterView, "increment", [prefix: "/ws"]])
         encoded = Actions.encode_module(MyApp.CounterView)
-        assert result == "@#{unquote(verb_str)}('/ws/ds/#{encoded}/increment', #{@csrf_opts})"
+        assert result == "@#{unquote(verb_str)}('/ws/ds/#{encoded}/increment')"
       end
     end
 
     describe "#{verb}/1 dynamic" do
-      test "generates a #{verb_str} action with dynamic module signal and CSRF header" do
+      test "generates a #{verb_str} action with dynamic module signal" do
         result = apply(Actions, unquote(verb), ["increment"])
 
         assert result ==
-                 "@#{unquote(verb_str)}('/ds/' + $_dstar_module + '/increment', #{@csrf_opts})"
+                 "@#{unquote(verb_str)}('/ds/' + $_dstar_module + '/increment')"
       end
 
-      test "generates #{verb_str} with custom module signal and CSRF header" do
+      test "generates #{verb_str} with custom module signal" do
         result = apply(Actions, unquote(verb), ["save", [module: "my_module"]])
-        assert result == "@#{unquote(verb_str)}('/ds/my_module/save', #{@csrf_opts})"
+        assert result == "@#{unquote(verb_str)}('/ds/my_module/save')"
       end
     end
   end

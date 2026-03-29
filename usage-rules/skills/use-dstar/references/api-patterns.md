@@ -240,13 +240,15 @@ end
   <meta name="csrf-token" content={get_csrf_token()} />
   <script src="/assets/datastar.js"></script>
 </head>
-<body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
+<body>
   <%= @inner_content %>
 </body>
 </html>
 ```
 
-Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`) automatically include `_csrf-token` in headers.
+Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`) read the standard Phoenix CSRF meta tag and include it as an `x-csrf-token` header.
+
+They do **not** read CSRF from Datastar signals, so normal signal round-trips do not rewrite the helper's CSRF header.
 
 ### Form-compatible
 
@@ -266,6 +268,8 @@ end
 ```heex
 <body data-signals:csrf={"'#{get_csrf_token()}'"}>
 ```
+
+Because `csrf` is not `_`-prefixed, Datastar will include it in each request body. `Dstar.Plugs.RenameCsrfParam` copies that value into `_csrf_token` for `Plug.CSRFProtection`.
 
 ## Multiple Patches in One Response
 

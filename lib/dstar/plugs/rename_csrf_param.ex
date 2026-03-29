@@ -5,20 +5,20 @@ defmodule Dstar.Plugs.RenameCsrfParam do
 
   ## Why this exists
 
-  Datastar treats signals whose names start with `_` as **client-only** —
-  they are never sent to the server in the request body. The conventional
-  CSRF signal (`_csrf-token` / `$_csrfToken`) is therefore delivered as an
-  `x-csrf-token` **header**, which works for Dstar SSE routes that bypass
-  `Plug.CSRFProtection`.
+  Dstar's verb helpers (`Dstar.post/2,3`, etc.) do **not** read CSRF from a
+  Datastar signal. They read the token from Phoenix's standard
+  `<meta name="csrf-token">` tag and send it as an `x-csrf-token` header.
+  That avoids any interaction between normal Datastar signal round-trips and
+  the CSRF header used by SSE routes.
 
   However, regular Phoenix form POSTs (e.g. sign-in, settings) still go
   through `Plug.CSRFProtection`, which looks for the token in
-  `conn.body_params["_csrf_token"]`. Because the `_`-prefixed signal is
-  never included in the body, those requests would fail with a 403.
+  `conn.body_params["_csrf_token"]`.
 
-  The workaround is to send the token as a **non-prefixed** signal (default
-  `csrf`) so it *is* included in the request body. This plug then copies
-  that param into `_csrf_token` in `body_params` before
+  If you want a Datastar-driven form request to satisfy that plug, you can
+  expose the token as a **non-prefixed** signal (default `csrf`). Because it
+  is not `_`-prefixed, Datastar will include it in each request body. This
+  plug then copies that param into `_csrf_token` in `body_params` before
   `Plug.CSRFProtection` runs.
 
   ## Usage

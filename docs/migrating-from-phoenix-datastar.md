@@ -36,7 +36,7 @@ end
 # After
 def deps do
   [
-    {:dstar, "~> 0.0.1"}
+    {:dstar, "~> 0.0.7"}
   ]
 end
 ```
@@ -455,17 +455,21 @@ end
 ### Header-based approach (recommended)
 
 ```heex
-<%!-- Before — layout --%>
-<body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
+<%!-- Before — Phoenix already exposes this in the layout head --%>
+<meta name="csrf-token" content={get_csrf_token()} />
 
-<%!-- After — identical! Same approach works with Dstar --%>
-<body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
+<%!-- After — keep using the standard Phoenix meta tag --%>
+<meta name="csrf-token" content={get_csrf_token()} />
 ```
 
-When using Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`), the CSRF header is automatically included in the generated expressions. If you write `@post(...)` manually, add the header yourself:
+When using Dstar's verb helpers (`post/2,3`, `get/2,3`, `put/2,3`, `patch/2,3`, `delete/2,3`), the CSRF header is automatically included in the generated expressions by reading the `<meta name="csrf-token">` tag.
+
+This means Datastar's normal signal round-tripping does **not** rewrite the CSRF header used by `Dstar.Actions`.
+
+If you write `@post(...)` manually, add the header yourself:
 
 ```heex
-<button data-on:click="@post('/counter/increment', {headers: {'x-csrf-token': $_csrfToken}})">
+<button data-on:click="@post('/counter/increment', {headers: {'x-csrf-token': document.querySelector('meta[name=csrf-token]').content}})">
   +
 </button>
 ```
@@ -479,6 +483,8 @@ plug Dstar.Plugs.RenameCsrfParam
 # After — same plug, same setup
 plug Dstar.Plugs.RenameCsrfParam
 ```
+
+If you expose the token as a non-prefixed `csrf` signal for form compatibility, Datastar will include it in every request body. That's expected, and `Dstar.Plugs.RenameCsrfParam` exists specifically to copy that value into `_csrf_token` for `Plug.CSRFProtection`.
 
 ## Step 7: Update Script Execution & Redirects
 

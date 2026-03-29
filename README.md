@@ -27,7 +27,7 @@ Add `dstar` to your deps in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:dstar, "~> 0.0.5"}
+    {:dstar, "~> 0.0.7"}
   ]
 end
 ```
@@ -297,10 +297,10 @@ Generates a `@post(...)` expression for use in Datastar attributes. All HTTP ver
 
 ```elixir
 Dstar.post(MyAppWeb.CounterHandler, "increment")
-# => "@post('/ds/my_app_web-counter_handler/increment', {headers: {'x-csrf-token': $_csrfToken}})"
+# => "@post('/ds/my_app_web-counter_handler/increment')"
 
 Dstar.delete(MyAppWeb.TodoHandler, "remove")
-# => "@delete('/ds/my_app_web-todo_handler/remove', {headers: {'x-csrf-token': $_csrfToken}})"
+# => "@delete('/ds/my_app_web-todo_handler/remove')"
 ```
 
 Also supports dynamic module references and URL prefixes. See `Dstar.Actions` docs for details.
@@ -453,6 +453,71 @@ roll out the client-side signal.
 | 3 tabs open | 3 streams (fine) | 3 streams (unchanged) |
 | 100 users rapid nav | Spikes of zombies doing wasted DB queries | Max 100 processes, zero wasted work |
 
+## SSE Connection Limits & HTTP/2
+
+Browsers allow only **6 concurrent HTTP/1.1 connections per domain**. Each
+SSE stream holds one connection open. With rapid navigation, zombie streams
+(server hasn't noticed the client left yet) plus the new page's stream can
+exhaust the pool — silently stalling **all** requests to that domain: fetches,
+asset loads, even page navigation. The page appears to hang with no error.
+
+**HTTP/2 fixes this.** It multiplexes ~100 streams over a single TCP
+connection, so SSE streams no longer compete with other requests. Bandit
+(Phoenix's default adapter) auto-negotiates HTTP/2 over TLS — no extra
+config beyond enabling HTTPS.
+
+### Enable HTTPS in dev
+
+1. Generate a self-signed certificate:
+
+```bash
+mix phx.gen.cert
+```
+
+If `mix phx.gen.cert` fails (missing `:public_key` on some OTP versions), use openssl:
+
+```bash
+mkdir -p priv/cert
+openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 \
+  -subj "/CN=localhost" \
+  -keyout priv/cert/selfsigned_key.pem \
+  -out priv/cert/selfsigned.pem
+```
+
+2. Switch `http:` to `https:` in `config/dev.exs`:
+
+```elixir
+config :my_app, MyAppWeb.Endpoint,
+  https: [
+    ip: {127, 0, 0, 1},
+    port: 4000,
+    cipher_suite: :strong,
+    keyfile: "priv/cert/selfsigned_key.pem",
+    certfile: "priv/cert/selfsigned.pem"
+  ],
+  url: [host: "localhost", scheme: "https"],
+  # ...
+```
+
+3. If `config/runtime.exs` sets `http: [port: ...]` for dev, change it to `https:` too.
+
+4. Add `priv/cert/` to `.gitignore` — each developer generates their own.
+
+5. Open `https://localhost:4000` and accept the self-signed cert warning once.
+
+### Verify HTTP/2 is active
+
+Open DevTools → Network tab → right-click column headers → enable
+**Protocol**. All requests should show `h2`.
+
+### Recommendation
+
+Use **Stream Deduplication** (previous section) and **HTTP/2** together.
+Dedup kills zombie processes server-side so they stop doing wasted DB
+queries. HTTP/2 prevents client-side connection exhaustion so the browser
+never stalls. Either one helps on its own; both together eliminate the
+problem entirely.
+
 ## Without Dispatch
 
 The Quick Start uses `Dstar.Plugs.Dispatch` to route events, but you can
@@ -486,15 +551,17 @@ you full routing control. Both use the same Dstar functions underneath.
 
 Dstar includes CSRF token handling for Datastar requests. Two approaches:
 
-### For SSE routes (recommended)
+### For Dstar helper routes (recommended)
 
-Add a `_csrfToken` signal to your root layout:
+Ensure your layout `<head>` includes Phoenix's standard CSRF meta tag:
 
 ```heex
-<body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
+<meta name="csrf-token" content={get_csrf_token()} />
 ```
 
-The `_` prefix means Datastar treats it as client-only — it's sent as an `x-csrf-token` header but not in the request body. Dstar's `event/2,3` helpers automatically include this header in generated `@post(...)` expressions.
+`Dstar.post/2,3` and the other verb helpers read that tag directly and send it as an `x-csrf-token` header.
+
+That means Datastar's normal signal round-tripping does **not** rewrite the helper's CSRF header.
 
 ### For mixed SSE + form routes
 
@@ -505,13 +572,13 @@ If you have regular Phoenix form POSTs that go through `Plug.CSRFProtection`, us
 plug Dstar.Plugs.RenameCsrfParam
 ```
 
-Then use a **non-prefixed** signal in your layout:
+Then expose the token as a **non-prefixed** signal in your layout:
 
 ```heex
 <body data-signals:csrf={"'#{get_csrf_token()}'"}>
 ```
 
-The plug copies `conn.params["csrf"]` → `conn.body_params["_csrf_token"]` so `Plug.CSRFProtection` can find it.
+Because `csrf` is not `_`-prefixed, Datastar will include it in each request body. The plug copies `conn.params["csrf"]` → `conn.body_params["_csrf_token"]` so `Plug.CSRFProtection` can find it.
 
 ## Lower-level Modules
 

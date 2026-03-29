@@ -15,15 +15,14 @@ defmodule Dstar.Actions do
 
   """
 
-  # Datastar options that attach the CSRF token from the `_csrfToken` signal
-  # as an `x-csrf-token` request header. The signal uses a `_` prefix so
-  # Datastar excludes it from the JSON body (it only needs to be a header).
+  # No explicit CSRF header needed — Datastar sends all signals (including
+  # `csrf`) as body params on every @post. The `RenameCsrfParam` plug copies
+  # the `csrf` param into `_csrf_token` for `Plug.CSRFProtection`.
   #
-  # To set up the signal, add this to your root layout:
+  # To set up the token, add this signal to your root layout:
   #
-  #     <body data-signals:_csrf-token={"'#{get_csrf_token()}'"}>
+  #     <body data-signals:csrf={"'#{get_csrf_token()}'"}>
   #
-  @csrf_opts "{headers: {'x-csrf-token': $_csrfToken}}"
 
   @verbs ~w(get post put patch delete)a
 
@@ -35,23 +34,23 @@ defmodule Dstar.Actions do
     @doc """
     Generates a `@#{verb_str}(...)` action expression for Datastar attributes.
 
-    Includes an `x-csrf-token` header that reads from the `$_csrfToken`
-    Datastar signal.
+    CSRF is handled automatically — Datastar sends all signals (including
+    `csrf`) as body params, and `RenameCsrfParam` maps it to `_csrf_token`.
 
     ## With a known module (compile-time):
 
         iex> Dstar.Actions.#{verb_str}(MyApp.CounterHandler, "increment")
-        "@#{verb_str}('/ds/my_app-counter_handler/increment', #{@csrf_opts})"
+        "@#{verb_str}('/ds/my_app-counter_handler/increment')"
 
     ## With a dynamic module signal (runtime on client):
 
         iex> Dstar.Actions.#{verb_str}("increment")
-        "@#{verb_str}('/ds/' + $_dstar_module + '/increment', #{@csrf_opts})"
+        "@#{verb_str}('/ds/' + $_dstar_module + '/increment')"
 
     ## With a URL prefix:
 
         iex> Dstar.Actions.#{verb_str}(MyApp.Handler, "save", prefix: "/ws")
-        "@#{verb_str}('/ws/ds/my_app-handler/save', #{@csrf_opts})"
+        "@#{verb_str}('/ws/ds/my_app-handler/save')"
 
     ## Options
 
@@ -79,7 +78,7 @@ defmodule Dstar.Actions do
     ## Example
 
         iex> Dstar.Actions.#{verb_str}(MyApp.Handler, "save", prefix: "/my-workspace")
-        "@#{verb_str}('/my-workspace/ds/my_app-handler/save', #{@csrf_opts})"
+        "@#{verb_str}('/my-workspace/ds/my_app-handler/save')"
 
     """
     @spec unquote(verb)(module(), String.t(), keyword()) :: String.t()
@@ -113,7 +112,7 @@ defmodule Dstar.Actions do
   defp action(verb, module, event_name, opts) do
     encoded = encode_module(module)
     prefix = Keyword.get(opts, :prefix, "")
-    "@#{verb}('#{prefix}/ds/#{encoded}/#{event_name}', #{@csrf_opts})"
+    "@#{verb}('#{prefix}/ds/#{encoded}/#{event_name}')"
   end
 
   defp action_dynamic(verb, event_name, opts) do
@@ -126,7 +125,7 @@ defmodule Dstar.Actions do
         "'/ds/#{module}/#{event_name}'"
       end
 
-    "@#{verb}(#{path}, #{@csrf_opts})"
+    "@#{verb}(#{path})"
   end
 
   # ── Module encoding ─────────────────────────────────────────────────
