@@ -509,6 +509,13 @@ config :my_app, MyAppWeb.Endpoint,
 
 5. Open `https://localhost:4000` and accept the self-signed cert warning once.
 
+6. **Tidewave users:** switching to HTTPS means Tidewave's MCP endpoint
+   (plain HTTP) is no longer auto-discovered. Re-add it explicitly:
+
+   ```bash
+   claude mcp add tidewave --transport http http://localhost:4000/tidewave/mcp -s local
+   ```
+
 ### Verify HTTP/2 is active
 
 Open DevTools → Network tab → right-click column headers → enable
