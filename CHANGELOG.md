@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.10 — 2026-04-24
+
+### Fixed
+
+- **Removed `Connection: keep-alive` header from SSE responses.** The header
+  is forbidden in HTTP/2 (RFC 9113 §8.2.2) and caused browsers and curl to
+  reject the entire response body over HTTP/2 connections. It was also
+  redundant in HTTP/1.1, where keep-alive is already the default.
+
 ## 0.0.9 — 2026-04-16
 
 ### Fixed

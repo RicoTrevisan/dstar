@@ -17,8 +17,12 @@ defmodule Dstar.SSE do
   Starts an SSE connection from a Plug conn.
 
   Sets the required SSE response headers (`Content-Type: text/event-stream`,
-  `Cache-Control: no-cache`, `Connection: keep-alive`) and sends a chunked
-  200 response.
+  `Cache-Control: no-cache`) and sends a chunked 200 response.
+
+  The `Connection` header is intentionally NOT set — it is forbidden in
+  HTTP/2 (RFC 9113 §8.2.2) and browsers/curl reject the entire response
+  body when they see it. `Connection: keep-alive` is an HTTP/1.1-only
+  header and is already the default there.
 
   ## Example
 
@@ -30,7 +34,6 @@ defmodule Dstar.SSE do
     conn
     |> Plug.Conn.put_resp_content_type("text/event-stream")
     |> Plug.Conn.put_resp_header("cache-control", "no-cache")
-    |> Plug.Conn.put_resp_header("connection", "keep-alive")
     |> Plug.Conn.send_chunked(200)
   end
 
